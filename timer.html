@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GMO Summit 2026 Half — Meeting Timer</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #f8fafc;
+    color: #1e293b;
+    font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    padding: 4vh 0 16px;
+    overflow-x: hidden;
+    position: relative;
+  }
+  #flash-overlay {
+    position: fixed; inset: 0; pointer-events: none;
+    z-index: 100; opacity: 0; transition: opacity 0.08s;
+  }
+  @keyframes shake-once {
+    0%,100%{transform:translateX(0)}
+    15%{transform:translateX(-14px) rotate(-1.2deg)}
+    30%{transform:translateX(14px) rotate(1.2deg)}
+    45%{transform:translateX(-9px)}
+    60%{transform:translateX(9px)}
+    75%{transform:translateX(-5px)}
+    90%{transform:translateX(5px)}
+  }
+  @keyframes shake-continuous {
+    0%   { transform: translateX(0) rotate(0deg); }
+    8%   { transform: translateX(-13px) rotate(-1.3deg); }
+    16%  { transform: translateX(13px) rotate(1.3deg); }
+    24%  { transform: translateX(-9px) rotate(-.9deg); }
+    32%  { transform: translateX(9px) rotate(.9deg); }
+    40%  { transform: translateX(-5px); }
+    50%  { transform: translateX(5px); }
+    60%  { transform: translateX(-2px); }
+    70%  { transform: translateX(2px); }
+    80%  { transform: translateX(-1px); }
+    90%  { transform: translateX(0); }
+    100% { transform: translateX(0); }
+  }
+  @keyframes glow-pulse {
+    0%,100%{box-shadow:0 0 0 3px var(--cc),0 4px 24px rgba(0,0,0,.10)}
+    50%{box-shadow:0 0 0 8px var(--cc),0 4px 40px rgba(0,0,0,.14)}
+  }
+  @keyframes bounce-time {
+    0%{transform:scale(1)} 40%{transform:scale(1.11)}
+    70%{transform:scale(0.97)} 100%{transform:scale(1)}
+  }
+  @keyframes alarm-pulse {
+    0%,100%{transform:scale(1);opacity:1}
+    50%{transform:scale(1.04);opacity:.88}
+  }
+  @keyframes fadeIn {
+    from{opacity:0;transform:scale(.96)} to{opacity:1;transform:scale(1)}
+  }
+  .container {
+    width: 500px; max-width: 96vw; margin: 0 auto;
+    display: flex; flex-direction: column; gap: 16px;
+  }
+  .logo-header {
+    display: flex; justify-content: center;
+    align-items: center; padding: 8px 0 4px;
+  }
+  .logo-header svg { height: 38px; width: auto; max-width: 100%; }
+  .timer-card {
+    background: #fff; border-radius: 20px;
+    padding: 28px 28px 22px;
+    border: 2.5px solid #e2e8f0;
+    box-shadow: 0 4px 20px rgba(0,0,0,.08);
+    --cc: #16a34a; transition: border-color .4s;
+    position: relative;
+    overflow: hidden;
+  }
+  .timer-card.glow { animation: glow-pulse 1.1s ease-in-out infinite; border-color: var(--cc); }
+  .timer-card.shake-once { animation: shake-once .55s ease-out; }
+  .timer-card.shake-tick { animation: shake-continuous .55s ease-out forwards; }
+  #status-msg {
+    text-align: center; font-size: .92rem; font-weight: 700;
+    letter-spacing: .07em; min-height: 1.4em;
+    color: var(--cc); margin-bottom: 6px; transition: color .4s;
+  }
+  #time-display {
+    text-align: center; font-size: 5.8rem; font-weight: 900;
+    font-variant-numeric: tabular-nums; color: var(--cc);
+    line-height: 1; letter-spacing: -3px; margin: 4px 0; transition: color .4s;
+  }
+  #time-display.bounce { animation: bounce-time .32s ease-out; }
+  #time-display.alarm  { animation: alarm-pulse .62s ease-in-out infinite; }
+  #overtime-display {
+    text-align: center; font-size: 1.25rem; font-weight: 800;
+    color: #dc2626; min-height: 1.6em; margin-top: 2px;
+  }
+  .progress-section { margin-top: 14px; }
+  .progress-label {
+    display: flex; justify-content: space-between;
+    font-size: .74rem; color: #64748b;
+    margin-bottom: 5px; font-weight: 600;
+  }
+  #progress-pct { color: var(--cc); transition: color .4s; }
+  .progress-bar-bg { height: 9px; background: #e2e8f0; border-radius: 99px; overflow: hidden; }
+  #progress-bar {
+    height: 100%; width: 100%; background: var(--cc);
+    border-radius: 99px; transition: width .5s linear, background .4s;
+  }
+  .setup-section {
+    background: #fff; border-radius: 16px;
+    padding: 16px 22px; border: 1.5px solid #e2e8f0;
+    box-shadow: 0 2px 8px rgba(0,0,0,.05);
+  }
+  .setup-section h3 {
+    font-size: .72rem; text-transform: uppercase;
+    letter-spacing: .11em; color: #94a3b8;
+    margin-bottom: 11px; font-weight: 700;
+  }
+  .time-inputs { display: flex; align-items: center; gap: 10px; justify-content: center; }
+  .time-field { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+  .time-field label { font-size: .66rem; color: #94a3b8; letter-spacing: .08em; font-weight: 600; }
+  .time-field input {
+    width: 74px; text-align: center; font-size: 1.5rem; font-weight: 800;
+    background: #f8fafc; border: 2px solid #cbd5e1; border-radius: 10px;
+    color: #1e293b; padding: 7px 4px; outline: none; transition: border-color .2s;
+  }
+  .time-field input:focus { border-color: #16a34a; }
+  .colon { font-size: 1.7rem; font-weight: 900; color: #94a3b8; margin-top: 10px; }
+  .presets { display: flex; gap: 7px; flex-wrap: wrap; margin-top: 10px; }
+  .preset-btn {
+    flex: 1; min-width: 50px; padding: 6px 4px; border-radius: 8px;
+    border: 1.5px solid #cbd5e1; background: #f8fafc;
+    color: #64748b; font-size: .76rem; font-weight: 700;
+    cursor: pointer; transition: all .18s;
+  }
+  .preset-btn:hover { border-color: #16a34a; color: #16a34a; background: #f0fdf4; }
+  .alert-row { display: flex; align-items: center; gap: 6px; margin-bottom: 7px; flex-wrap: wrap; }
+  .alert-row input[type=number] {
+    width: 54px; text-align: center; font-size: 1rem; font-weight: 800;
+    background: #f8fafc; border: 2px solid #cbd5e1; border-radius: 8px;
+    color: #1e293b; padding: 4px 2px; outline: none;
+  }
+  .alert-row input[type=number]:focus { border-color: #16a34a; }
+  .alert-row .unit { font-size: .76rem; color: #64748b; font-weight: 700; }
+  .alert-row select {
+    flex: 1; min-width: 150px; padding: 6px 6px; border-radius: 8px;
+    border: 2px solid #cbd5e1; background: #f8fafc; color: #1e293b;
+    font-size: .8rem; font-weight: 700; cursor: pointer;
+  }
+  .mini-btn {
+    padding: 6px 9px; border-radius: 8px; border: 1.5px solid #cbd5e1;
+    background: #f8fafc; color: #64748b; font-size: .78rem; font-weight: 800; cursor: pointer;
+  }
+  .mini-btn:hover { border-color: #16a34a; color: #16a34a; background: #f0fdf4; }
+  .mini-btn.del:hover { border-color: #dc2626; color: #dc2626; background: #fef2f2; }
+  #alert-box { order: 99; }
+  #alert-box summary { cursor: pointer; font-size: .85rem; font-weight: 800; color: #475569; }
+  .alert-scroll { max-height: 240px; overflow-y: auto; margin-top: 12px; padding-right: 4px; }
+  .controls { display: flex; gap: 11px; justify-content: center; }
+  .btn {
+    flex: 1; padding: 13px; border-radius: 13px; border: none;
+    font-size: .92rem; font-weight: 800; cursor: pointer;
+    transition: all .14s; letter-spacing: .04em;
+  }
+  .btn:active { transform: scale(.96); }
+  #btn-start { background: #16a34a; color: #fff; max-width: 200px; }
+  #btn-reset  { background: #e2e8f0; color: #475569; max-width: 120px; }
+  #btn-reset:hover { background: #cbd5e1; }
+  .sound-toggle {
+    display: flex; align-items: center; justify-content: center;
+    gap: 7px; font-size: .78rem; color: #64748b;
+    cursor: pointer; user-select: none; font-weight: 600;
+  }
+  .sound-toggle input { cursor: pointer; accent-color: #16a34a; }
+  #end-overlay {
+    position: absolute; inset: 0; background: rgba(255,255,255,.92);
+    align-items: center; justify-content: center;
+    z-index: 10; display: none; border-radius: 18px;
+    backdrop-filter: blur(2px);
+  }
+  #end-overlay.visible { display: flex; animation: fadeIn .28s ease-out; }
+  .end-card {
+    text-align: center;
+    animation: alarm-pulse .65s ease-in-out infinite;
+    padding: 16px;
+    width: 100%;
+  }
+  .end-card h2 { font-size: 2.1rem; font-weight: 900; color: #dc2626; margin-bottom: 8px; }
+  .end-card p  { color: #64748b; font-size: .92rem; margin-bottom: 20px; }
+  .end-card button {
+    padding: 11px 28px; background: #dc2626; border: none;
+    border-radius: 10px; color: #fff; font-size: .92rem;
+    font-weight: 800; cursor: pointer; transition: opacity .18s;
+  }
+  .end-card button:hover { opacity: .86; }
+</style>
+</head>
+<body>
+
+<div id="flash-overlay"></div>
+
+<div class="container">
+  <div class="logo-header">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2397 190" role="img" aria-label="GMO Summit 2026"><path fill="#005bac" fill-rule="evenodd" d="M369,4L312,186L368,186L390,111L390,108L395,94L395,91L397,88L450,174L476,174L478,172L529,88L533,97L533,100L542,128L558,186L614,186L612,177L606,161L606,158L600,142L600,139L594,123L594,120L588,104L588,101L582,85L582,82L576,66L576,63L570,47L570,44L564,28L564,25L558,9L557,3L555,2L535,2L532,5L463,112L394,5L391,2L371,2ZM612,84L612,104L615,115L619,124L628,137L640,149L652,158L674,170L705,181L729,186L744,187L745,188L760,188L761,189L793,188L794,187L802,187L803,186L820,184L849,176L874,165L894,152L909,138L917,127L922,117L926,103L926,86L921,69L911,53L892,35L869,21L838,9L817,4L798,2L797,1L786,1L785,0L752,0L751,1L741,1L740,2L721,4L700,9L673,19L650,32L642,38L626,54L616,71ZM686,59L695,50L711,39L724,33L741,28L770,25L771,26L792,27L808,31L821,36L835,44L844,51L857,66L862,76L865,87L865,101L863,110L856,124L840,141L828,149L810,157L782,163L756,163L731,158L708,148L698,141L684,127L676,113L673,103L673,86L677,73ZM1,81L0,102L4,117L8,125L19,140L39,157L58,168L83,178L117,186L132,187L133,188L148,188L149,189L181,188L182,187L190,187L191,186L197,186L213,183L240,175L266,163L285,150L302,132L312,113L315,97L314,84L313,83L153,83L145,89L143,93L143,101L148,109L155,112L249,112L250,113L243,126L227,142L206,154L195,158L178,162L145,163L144,162L131,161L111,155L100,150L89,143L74,129L69,122L62,106L61,88L65,74L68,68L78,55L96,41L110,34L125,29L141,26L155,26L156,25L159,26L173,26L193,30L207,35L217,40L229,49L295,49L290,43L279,34L265,25L251,18L215,6L200,3L194,3L193,2L175,1L174,0L141,0L140,1L121,2L92,8L66,17L43,29L28,40L16,52L9,62Z"/><path fill="#595757" fill-rule="evenodd" d="M1586,66L1587,104L1588,105L1588,148L1587,149L1586,185L1587,186L1593,186L1594,185L1610,186L1612,184L1611,182L1611,172L1610,171L1610,82L1611,81L1611,70L1612,68L1611,66L1605,66L1604,67ZM1079,66L1078,67L1078,157L1081,167L1086,175L1094,182L1106,187L1129,188L1145,182L1156,172L1157,173L1157,182L1156,184L1158,186L1163,186L1164,185L1178,186L1180,184L1179,183L1179,82L1180,81L1180,67L1179,66L1174,66L1173,67L1157,66L1156,67L1156,144L1153,155L1149,162L1141,169L1133,172L1120,172L1111,168L1105,162L1102,156L1100,148L1100,95L1101,94L1102,67L1101,66L1096,66L1095,67ZM1391,67L1392,89L1393,90L1393,162L1392,163L1392,178L1391,179L1391,185L1392,186L1399,186L1400,185L1416,186L1417,185L1416,165L1415,164L1415,110L1416,109L1416,104L1421,91L1428,84L1439,80L1448,80L1457,84L1462,89L1466,98L1466,104L1467,105L1467,153L1466,154L1466,173L1465,174L1465,185L1466,186L1472,186L1473,185L1489,186L1490,185L1490,168L1489,167L1489,113L1490,112L1490,101L1494,91L1499,86L1512,80L1522,80L1529,82L1536,88L1540,97L1541,102L1541,146L1540,147L1540,169L1539,170L1539,183L1538,184L1540,186L1544,185L1563,186L1564,184L1564,179L1563,178L1563,133L1564,132L1564,105L1565,104L1564,103L1564,93L1558,78L1550,70L1543,66L1536,64L1530,64L1529,63L1515,64L1508,66L1497,72L1486,84L1483,79L1475,71L1468,67L1459,64L1447,63L1446,64L1436,65L1426,70L1416,80L1415,79L1415,72L1416,71L1415,66L1409,66L1408,67L1392,66ZM1199,66L1198,68L1199,69L1199,79L1200,80L1200,172L1199,173L1199,183L1198,184L1200,186L1206,186L1207,185L1223,186L1224,185L1224,174L1223,173L1223,106L1226,96L1230,89L1237,83L1247,80L1255,80L1263,83L1271,91L1274,101L1274,165L1273,166L1273,180L1272,181L1273,186L1280,186L1281,185L1297,186L1298,184L1298,179L1297,178L1297,105L1298,104L1298,99L1301,92L1308,85L1313,82L1320,80L1330,80L1338,83L1345,90L1348,99L1348,160L1347,161L1346,185L1347,186L1352,185L1370,186L1371,185L1372,96L1368,82L1365,77L1359,71L1350,66L1343,64L1337,64L1336,63L1322,64L1315,66L1306,71L1298,78L1294,84L1289,77L1281,70L1267,64L1254,63L1241,66L1232,71L1224,79L1223,78L1223,67L1222,66L1217,66L1216,67ZM1667,33L1655,39L1648,41L1646,43L1647,68L1646,69L1638,69L1637,68L1631,69L1631,74L1632,75L1631,82L1632,83L1646,82L1648,84L1646,164L1651,177L1658,184L1669,188L1686,188L1698,185L1699,184L1699,177L1698,176L1693,176L1692,177L1678,176L1672,170L1670,166L1668,156L1669,84L1671,82L1694,83L1696,81L1695,79L1696,70L1695,69L1671,69L1670,68L1672,35L1671,33ZM1595,11L1587,16L1584,23L1584,28L1586,33L1591,38L1596,40L1601,40L1609,36L1612,32L1613,21L1607,13L1603,11ZM1039,13L1030,11L1009,11L994,15L980,23L971,33L967,41L964,54L964,65L967,78L971,85L982,96L988,100L1000,106L1012,110L1029,119L1038,128L1041,136L1041,148L1038,158L1029,169L1016,175L1000,175L993,173L982,166L970,150L966,150L964,154L964,160L960,175L970,182L979,186L992,189L1012,189L1029,185L1036,182L1045,176L1052,169L1060,156L1064,142L1064,124L1062,117L1057,108L1049,100L1040,94L1027,88L1017,85L1000,76L991,67L987,56L988,44L991,37L1002,27L1011,24L1022,24L1030,27L1039,35L1045,47L1050,47L1052,42L1052,38L1057,26L1057,23L1052,19ZM2363,3L2349,3L2348,4L2336,5L2319,12L2308,20L2301,27L2291,41L2284,56L2278,76L2276,96L2275,97L2275,125L2276,126L2276,133L2278,143L2281,152L2287,164L2297,176L2307,183L2322,188L2328,188L2329,189L2349,188L2363,184L2369,181L2376,176L2386,165L2391,156L2395,143L2396,119L2393,107L2386,95L2378,87L2372,83L2355,77L2333,76L2323,79L2315,83L2302,95L2301,94L2305,69L2311,52L2320,36L2330,25L2344,17L2364,16L2370,18L2373,14L2369,7L2369,5ZM2331,90L2344,90L2355,95L2362,103L2368,120L2369,138L2365,156L2361,164L2353,172L2342,177L2330,177L2319,172L2310,163L2304,150L2303,139L2302,138L2303,122L2308,108L2318,96ZM2161,8L2150,15L2143,22L2137,31L2147,46L2151,46L2158,30L2168,21L2179,17L2192,18L2199,22L2206,29L2210,38L2211,52L2212,53L2210,74L2202,94L2189,113L2170,135L2126,179L2125,184L2127,186L2144,186L2145,185L2223,185L2224,186L2242,186L2243,185L2242,180L2243,164L2242,163L2216,164L2215,165L2162,165L2161,164L2175,148L2221,101L2234,81L2238,70L2240,60L2240,45L2237,32L2230,20L2220,11L2209,6L2193,3L2174,4ZM2045,3L2044,4L2034,5L2020,11L2007,22L2000,32L1994,45L1989,65L1988,82L1987,83L1987,111L1988,112L1989,131L1992,145L1999,162L2007,173L2017,181L2028,186L2044,189L2057,189L2058,188L2068,187L2078,183L2088,176L2094,170L2101,160L2109,142L2113,126L2114,112L2115,111L2115,79L2114,78L2114,68L2110,47L2108,41L2098,23L2086,12L2076,7L2065,4ZM2044,16L2058,16L2067,20L2075,28L2083,43L2087,59L2088,75L2089,76L2089,117L2088,118L2088,127L2085,143L2080,157L2075,165L2068,172L2057,177L2045,177L2039,175L2034,172L2025,162L2018,146L2015,133L2014,116L2013,115L2013,77L2014,76L2014,66L2015,65L2015,58L2021,37L2028,26L2036,19ZM1881,7L1870,13L1861,21L1854,31L1855,34L1864,46L1868,46L1876,29L1885,21L1896,17L1905,17L1915,21L1925,32L1928,41L1929,60L1928,61L1927,75L1918,96L1907,112L1890,132L1843,179L1843,185L1844,186L1862,186L1863,185L1940,185L1941,186L1959,186L1960,185L1960,180L1959,179L1960,164L1959,163L1933,164L1932,165L1880,165L1879,164L1895,145L1939,100L1948,87L1952,79L1957,61L1957,43L1955,34L1948,21L1940,13L1929,7L1911,3L1891,4ZM1821,0L1807,0L1742,186L1756,186L1786,98L1788,95L1794,75L1796,72L1802,52L1804,49L1809,32L1811,29L1817,9Z"/></svg>
+  </div>
+
+  <div class="timer-card" id="timer-card">
+    <div id="end-overlay">
+      <div class="end-card">
+        <h2>⏰ 持ち時間終了です</h2>
+        <p>超過時間の計測を継続中です。</p>
+        <button onclick="dismissEnd()">閉じる</button>
+      </div>
+    </div>
+    <div id="status-msg">時間を設定してスタート</div>
+    <div id="time-display">00:00</div>
+    <div id="overtime-display"></div>
+    <div class="progress-section">
+      <div class="progress-label">
+        <span>残り時間</span>
+        <span id="progress-pct">100%</span>
+      </div>
+      <div class="progress-bar-bg">
+        <div id="progress-bar"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="setup-section">
+    <h3>時間を設定</h3>
+    <div class="time-inputs">
+      <div class="time-field">
+        <label>分 (0–999)</label>
+        <input type="number" id="input-min" value="5" min="0" max="999">
+      </div>
+      <div class="colon">:</div>
+      <div class="time-field">
+        <label>秒 (0–59)</label>
+        <input type="number" id="input-sec" value="0" min="0" max="59">
+      </div>
+    </div>
+    <div class="presets">
+      <button class="preset-btn" onclick="setPreset(1)">1分</button>
+      <button class="preset-btn" onclick="setPreset(3)">3分</button>
+      <button class="preset-btn" onclick="setPreset(5)">5分</button>
+      <button class="preset-btn" onclick="setPreset(10)">10分</button>
+      <button class="preset-btn" onclick="setPreset(15)">15分</button>
+      <button class="preset-btn" onclick="setPreset(30)">30分</button>
+    </div>
+  </div>
+
+  <details class="setup-section" id="alert-box">
+    <summary>🔔 アラート設定（クリックで開く／ONのものだけ鳴ります）</summary>
+    <div class="alert-scroll">
+    <h3>残り時間アラート</h3>
+    <div id="alert-list"></div>
+    <button class="mini-btn" style="width:100%;border-style:dashed;" onclick="addAlert()">＋ 時間アラートを追加</button>
+
+    <h3 style="margin-top:12px;">残り％アラート（設定時間に対する割合）</h3>
+    <div id="pct-list"></div>
+    <button class="mini-btn" style="width:100%;border-style:dashed;" onclick="addPct()">＋ ％アラートを追加</button>
+
+    <h3 style="margin-top:12px;">超過アラート（カウントアップ）</h3>
+    <div class="alert-row">
+      <input type="checkbox" id="ot-on" checked title="ON/OFF" style="width:18px;height:18px;cursor:pointer;accent-color:#16a34a;">
+      <span class="unit">超過</span>
+      <input type="number" id="ot-min" value="1" min="0" max="999">
+      <span class="unit">分</span>
+      <input type="number" id="ot-sec" value="0" min="0" max="59">
+      <span class="unit">秒ごと</span>
+      <select id="ot-lv">
+        <option value="end">⏰ 時間切れの音（上昇音×3）</option>
+        <option value="low">🟢 緊急度【低】やわらかい3音</option>
+        <option value="mid">🟠 緊急度【中】ピピピ</option>
+        <option value="high">🔴 緊急度【高】連続ビープ</option>
+      </select>
+      <button class="mini-btn" onclick="playOt()">▶試聴</button>
+    </div>
+    <div style="font-size:.7rem;color:#94a3b8;font-weight:600;">0分0秒にすると超過中の音は鳴りません</div>
+    </div>
+  </details>
+
+  <div class="controls">
+    <button class="btn" id="btn-start" onclick="toggleStartPause()">▶ スタート</button>
+    <button class="btn" id="btn-reset" onclick="resetTimer()">↺ リセット</button>
+  </div>
+
+  <label class="sound-toggle">
+    <input type="checkbox" id="sound-chk" checked>
+    🔔 アラーム音を鳴らす（オフで全て消音）
+  </label>
+</div>
+
+<script>
+var totalSec=0, remainSec=0, overtimeSec=0;
+var iv=null, running=false, finished=false;
+var endShown=false, played2min=false;
+var phase='green';
+var CC = { green:'#16a34a', orange:'#ea580c', red:'#dc2626' };
+
+function $(id){ return document.getElementById(id); }
+var card   = $('timer-card');
+var timeDsp= $('time-display');
+var statMsg= $('status-msg');
+var pBar   = $('progress-bar');
+var pPct   = $('progress-pct');
+var otDsp  = $('overtime-display');
+var flash  = $('flash-overlay');
+var btnSt  = $('btn-start');
+
+var actx=null;
+function getCtx(){ if(!actx) actx=new(window.AudioContext||window.webkitAudioContext)(); return actx; }
+
+function tone(freq, dur, start, type, vol){
+  start=start||0; type=type||'sine'; vol=vol||0.45;
+  if(!$('sound-chk').checked) return;
+  var c=getCtx(), o=c.createOscillator(), g=c.createGain();
+  o.connect(g); g.connect(c.destination);
+  o.type=type; o.frequency.value=freq;
+  var t=c.currentTime+start;
+  g.gain.setValueAtTime(0,t);
+  g.gain.linearRampToValueAtTime(vol,t+0.02);
+  g.gain.exponentialRampToValueAtTime(0.001,t+dur);
+  o.start(t); o.stop(t+dur+0.05);
+}
+
+function beep2min(){
+  [0,0.22,0.44].forEach(function(s){
+    tone(1046,0.18,s,'sine',0.6);
+    tone(1046,0.18,s,'triangle',0.25);
+  });
+}
+
+function chime(type){
+  if(type==='orange'){
+    [[880,0],[740,0.18],[660,0.36]].forEach(function(p){ tone(p[0],0.20,p[1],'sine',0.55); });
+  } else if(type==='red'){
+    [0,0.18,0.36].forEach(function(s){
+      tone(1174,0.14,s,'square',0.35);
+      tone(1174,0.14,s,'sine',0.5);
+    });
+  }
+}
+
+// 残り30・20・10秒：短いビープ3発
+function beepCountdown(){
+  [0,0.18,0.36].forEach(function(s){
+    tone(1318,0.12,s,'sine',0.65);
+    tone(1318,0.12,s,'triangle',0.3);
+  });
+}
+
+// 時間切れ：上昇音を合計3回
+function alarmEnd(){
+  if(!$('sound-chk').checked) return;
+  var seq=[523,659,784,1047,1319];
+  function playSeq(){
+    seq.forEach(function(f,i){
+      tone(f,0.16,i*0.16,'sine',0.55);
+      tone(f,0.16,i*0.16,'triangle',0.28);
+    });
+  }
+  playSeq();
+  setTimeout(playSeq,900);
+  setTimeout(playSeq,1800);
+}
+
+// ===== アラート（緊急度3段階） =====
+var LEVELS = {
+  low:  { name:'🟢 緊急度【低】やわらかい3音', flash:'rgba(234,88,12,.30)', n:2 },
+  mid:  { name:'🟠 緊急度【中】ピピピ',       flash:'rgba(234,88,12,.42)', n:3 },
+  high: { name:'🔴 緊急度【高】連続ビープ',   flash:'rgba(220,38,38,.45)', n:4 }
+};
+var alerts = [
+  {on:true,  sec:300, lv:'low'},
+  {on:false, sec:180, lv:'low'},
+  {on:true,  sec:120, lv:'mid'},
+  {on:true,  sec:60,  lv:'mid'},
+  {on:true,  sec:30,  lv:'high'},
+  {on:true,  sec:20,  lv:'high'},
+  {on:true,  sec:10,  lv:'high'},
+  {on:false, sec:5,   lv:'high'}
+];
+
+var pctAlerts = [
+  {on:false, pct:50, lv:'low'},
+  {on:false, pct:25, lv:'mid'},
+  {on:false, pct:10, lv:'high'}
+];
+
+function renderPct(){
+  var box=$('pct-list'); box.innerHTML='';
+  pctAlerts.forEach(function(a){
+    var row=document.createElement('div'); row.className='alert-row';
+    row.style.opacity=a.on?'1':'.45';
+    var chk=document.createElement('input'); chk.type='checkbox'; chk.checked=a.on;
+    chk.style.cssText='width:18px;height:18px;cursor:pointer;accent-color:#16a34a;';
+    chk.onchange=function(){ a.on=chk.checked; row.style.opacity=a.on?'1':'.45'; };
+    var pi=document.createElement('input'); pi.type='number'; pi.min=1; pi.max=99; pi.value=a.pct;
+    pi.onchange=function(){ a.pct=Math.min(99,Math.max(1,parseInt(pi.value)||1)); pi.value=a.pct; };
+    var sel=document.createElement('select');
+    Object.keys(LEVELS).forEach(function(k){
+      var o=document.createElement('option'); o.value=k; o.textContent=LEVELS[k].name;
+      if(k===a.lv) o.selected=true; sel.appendChild(o);
+    });
+    sel.onchange=function(){ a.lv=sel.value; };
+    var t=document.createElement('button'); t.className='mini-btn'; t.textContent='▶試聴';
+    t.onclick=function(){ playLevel(a.lv); };
+    var d=document.createElement('button'); d.className='mini-btn del'; d.textContent='✕';
+    d.onclick=function(){ pctAlerts.splice(pctAlerts.indexOf(a),1); renderPct(); };
+    function u(txt){ var s=document.createElement('span'); s.className='unit'; s.textContent=txt; return s; }
+    row.appendChild(chk); row.appendChild(u('残り')); row.appendChild(pi); row.appendChild(u('％'));
+    row.appendChild(sel); row.appendChild(t); row.appendChild(d);
+    box.appendChild(row);
+  });
+}
+function addPct(){ pctAlerts.push({on:true,pct:75,lv:'low'}); renderPct(); }
+
+function playLevel(lv){
+  if(lv==='low'){
+    [[880,0],[740,0.18],[660,0.36]].forEach(function(p){ tone(p[0],0.20,p[1],'sine',0.55); });
+  } else if(lv==='mid'){
+    beep2min();
+  } else {
+    [0,0.14,0.28,0.42,0.56].forEach(function(s){
+      tone(1318,0.11,s,'square',0.3);
+      tone(1318,0.11,s,'sine',0.55);
+    });
+  }
+}
+
+function playOt(){
+  var lv=$('ot-lv').value;
+  if(lv==='end') alarmEnd(); else playLevel(lv);
+}
+
+function fireAlert(lv){
+  playLevel(lv);
+  doFlash(LEVELS[lv].flash, LEVELS[lv].n);
+  if(lv!=='low') shakeOnce();
+}
+
+function renderAlerts(){
+  var box=$('alert-list'); box.innerHTML='';
+  alerts.forEach(function(a,i){
+    var row=document.createElement('div'); row.className='alert-row';
+    row.style.opacity=a.on?'1':'.45';
+    var chk=document.createElement('input'); chk.type='checkbox'; chk.checked=a.on; chk.title='ON/OFF';
+    chk.style.cssText='width:18px;height:18px;cursor:pointer;accent-color:#16a34a;';
+    chk.onchange=function(){ a.on=chk.checked; row.style.opacity=a.on?'1':'.45'; };
+    var mi=document.createElement('input'); mi.type='number'; mi.min=0; mi.max=999; mi.value=Math.floor(a.sec/60);
+    var si=document.createElement('input'); si.type='number'; si.min=0; si.max=59; si.value=a.sec%60;
+    function upd(){
+      a.sec=(parseInt(mi.value)||0)*60+(parseInt(si.value)||0);
+    }
+    mi.onchange=function(){ upd(); renderAlerts(); };
+    si.onchange=function(){ upd(); renderAlerts(); };
+    var sel=document.createElement('select');
+    Object.keys(LEVELS).forEach(function(k){
+      var o=document.createElement('option'); o.value=k; o.textContent=LEVELS[k].name;
+      if(k===a.lv) o.selected=true; sel.appendChild(o);
+    });
+    sel.onchange=function(){ a.lv=sel.value; };
+    var t=document.createElement('button'); t.className='mini-btn'; t.textContent='▶試聴';
+    t.onclick=function(){ playLevel(a.lv); };
+    var d=document.createElement('button'); d.className='mini-btn del'; d.textContent='✕';
+    d.onclick=function(){ alerts.splice(alerts.indexOf(a),1); renderAlerts(); };
+    function u(txt){ var s=document.createElement('span'); s.className='unit'; s.textContent=txt; return s; }
+    row.appendChild(chk); row.appendChild(u('残り')); row.appendChild(mi); row.appendChild(u('分'));
+    row.appendChild(si); row.appendChild(u('秒')); row.appendChild(sel);
+    row.appendChild(t); row.appendChild(d);
+    box.appendChild(row);
+  });
+}
+function addAlert(){ alerts.push({on:true,sec:90,lv:'mid'}); renderAlerts(); }
+
+function doFlash(color,n){
+  flash.style.background=color;
+  var i=0;
+  function go(){
+    flash.style.opacity='0.5';
+    setTimeout(function(){
+      flash.style.opacity='0'; i++;
+      if(i<n) setTimeout(go,180);
+    },110);
+  }
+  go();
+}
+
+function shakeOnce(){
+  card.classList.remove('shake-once','shake-continuous');
+  void card.offsetWidth;
+  card.classList.add('shake-once');
+  setTimeout(function(){ card.classList.remove('shake-once'); },660);
+}
+
+function shakeTick(){
+  card.classList.remove('shake-tick');
+  void card.offsetWidth;
+  card.classList.add('shake-tick');
+  setTimeout(function(){ card.classList.remove('shake-tick'); }, 600);
+}
+
+function stopShake(){
+  card.classList.remove('shake-once','shake-tick');
+}
+
+function bounce(){
+  timeDsp.classList.remove('bounce');
+  void timeDsp.offsetWidth;
+  timeDsp.classList.add('bounce');
+  setTimeout(function(){ timeDsp.classList.remove('bounce'); },380);
+}
+
+function setColor(p){
+  var c=CC[p]||CC.red;
+  card.style.setProperty('--cc',c);
+  pBar.style.background=c;
+}
+
+function fmt(s){
+  var m=Math.floor(Math.abs(s)/60).toString().padStart(2,'0');
+  var sc=(Math.abs(s)%60).toString().padStart(2,'0');
+  return m+':'+sc;
+}
+
+function statusText(){
+  if(finished) return '⏰ 持ち時間終了';
+  if(!running && remainSec===totalSec) return '時間を設定してスタート';
+  if(!running) return '⏸ 一時停止中';
+  if(remainSec<=10)  return '🔴 残りわずかです！';
+  if(phase==='red')    return '🔴 残りわずかです！';
+  if(phase==='orange') return '🟠 そろそろ終了です';
+  return '🟢 残りの持ち時間';
+}
+
+function render(){
+  timeDsp.textContent = fmt(finished ? 0 : remainSec);
+  statMsg.textContent = statusText();
+  statMsg.style.color  = CC[phase]||CC.red;
+  pPct.style.color     = CC[phase]||CC.red;
+  var pct = totalSec>0 ? Math.max(0,(remainSec/totalSec)*100) : 0;
+  pBar.style.width = pct+'%';
+  pPct.textContent = Math.round(pct)+'%';
+  otDsp.textContent = (finished && overtimeSec>0) ? '+'+fmt(overtimeSec)+' 超過' : '';
+}
+
+function tick(){
+  if(!finished){
+    remainSec--;
+    if(remainSec<0){
+      remainSec=0; finished=true; overtimeSec=0;
+      setColor('red');
+      timeDsp.classList.add('alarm');
+      card.classList.add('glow');
+      alarmEnd();
+      doFlash('rgba(220,38,38,.55)',6);
+      if(!endShown){ endShown=true; setTimeout(showEnd,350); }
+    } else {
+      var p = remainSec<=60?'red':remainSec<=300?'orange':'green';
+      if(p!==phase){
+        phase=p; setColor(p); shakeOnce(); bounce();
+        if(p==='orange'){ doFlash('rgba(234,88,12,.42)',3); }
+        if(p==='red')   { doFlash('rgba(220,38,38,.45)',4); }
+      }
+
+      // 設定されたアラート（同じ時間に複数あればすべて鳴る）
+      // 同時刻に複数該当した場合は、緊急度が最も高いものだけ鳴らす
+      var RANK={low:1,mid:2,high:3}, best=null;
+      function cand(lv){ if(!best || RANK[lv]>RANK[best]) best=lv; }
+      alerts.forEach(function(a){ if(a.on && a.sec===remainSec) cand(a.lv); });
+      pctAlerts.forEach(function(a){
+        if(a.on && totalSec>0 && remainSec>0 && remainSec===Math.round(totalSec*a.pct/100)) cand(a.lv);
+      });
+      if(best) fireAlert(best);
+
+      if(remainSec < 10){ shakeTick(); }
+    }
+  } else {
+    overtimeSec++;
+    shakeTick();
+    var otInt=(parseInt($('ot-min').value)||0)*60+(parseInt($('ot-sec').value)||0);
+    if($('ot-on').checked && otInt>0 && overtimeSec%otInt===0){ playOt(); doFlash('rgba(220,38,38,.45)',3); }
+  }
+  render();
+}
+
+function showEnd(){ $('end-overlay').classList.add('visible'); }
+function dismissEnd(){ $('end-overlay').classList.remove('visible'); }
+
+function toggleStartPause(){
+  if(totalSec===0){
+    var m=parseInt($('input-min').value)||0;
+    var s=parseInt($('input-sec').value)||0;
+    var tot=m*60+s;
+    if(!tot){ shakeOnce(); return; }
+    totalSec=tot; remainSec=tot; finished=false;
+    endShown=false; played2min=false;
+    phase='green'; setColor('green');
+    timeDsp.classList.remove('alarm');
+    card.classList.remove('glow');
+    stopShake();
+  }
+  if(running){
+    clearInterval(iv); iv=null; running=false;
+    btnSt.textContent='▶ 再開'; btnSt.style.background='#ea580c';
+  } else {
+    running=true;
+    btnSt.textContent='⏸ 一時停止'; btnSt.style.background='#64748b';
+    iv=setInterval(tick,1000);
+  }
+  render();
+}
+
+function resetTimer(){
+  clearInterval(iv); iv=null;
+  running=false; finished=false; endShown=false; played2min=false;
+  totalSec=0; remainSec=0; overtimeSec=0;
+  phase='green'; setColor('green');
+  timeDsp.classList.remove('alarm');
+  card.classList.remove('glow');
+  stopShake();
+  btnSt.textContent='▶ スタート'; btnSt.style.background='#16a34a';
+  $('input-min').value=5; $('input-sec').value=0;
+  $('end-overlay').classList.remove('visible');
+  statMsg.textContent='時間を設定してスタート';
+  render();
+}
+
+function setPreset(m){
+  $('input-min').value=m; $('input-sec').value=0;
+  if(running||totalSec>0) resetTimer();
+}
+
+renderAlerts();
+renderPct();
+render();
+</script>
+</body>
+</html>
